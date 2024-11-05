@@ -1,0 +1,186 @@
+---
+title: "BF Midterm Exam"
+author: "Adrian Chan"
+date: "2024-11-04"
+output: html_document
+---
+
+```{r}
+
+library(fpp)
+library(fpp2)
+library(readr)
+
+sales<-read.csv("C:/Users/Adrian/Documents/Business Forecasting/sales.csv")
+# imports the data file through the entire file path
+sales
+
+sales_ts<-ts(sales$X1501.807,start=c(2020,2),frequency=12)
+head(sales_ts)
+sales_ts
+
+plot(sales_ts,main="Sales",ylab="Total",xlab="Month and Year")
+# In the initial time series plot, it is clear that the sales has increased from 2020 to 2024. There also seems to be a pattern of months in which the sales goes up and then goes down afterwards.
+
+summary(sales_ts)
+# From this code,
+# Min=1322
+# Max=22397
+# Mean=8885
+# Median=7540
+# 1st Quartile=3005
+# 3rd Quartile=14419
+boxplot(sales_ts,main="Sales")
+# The data in the time series varies from a little more than 1,000 to more than 22,000. The mean is slightly larger than the median, which makes sense as the initial time series plot shows an increase in sales over time, and the interquartile range is 11,414.
+
+stl_decomp<-stl(sales_ts, s.window = "periodic")
+plot(stl_decomp)
+# Using the decomposition plot, there is a clear pattern in the seasonal section of the plot. There is a clear wave-like pattern over time with peaks and troughs occuring at regular intervals.
+# The decomposition is additive because the seasonal and trend components remain relatively constant over time. The seasonal component does not change over time as the trend changes.
+seasadj(stl_decomp)
+attributes(stl_decomp)
+
+
+seasonal_component <- stl_decomp$time.series[, "seasonal"]
+seasonal_component
+# This code gives the seasonal component 
+monthly_indices <- tapply(seasonal_component, cycle(sales_ts), mean)
+monthly_indices
+
+# It is high in March, May, June, July, and December, low in the other months
+
+# I think the high and low values in each month has to do with the seasonality and when the product is in demand.
+
+
+naive_forecast<-naive(sales_ts,12)
+plot(naive_forecast)
+
+plot(naive_forecast$residuals)
+# The plot of residuals indicates that the naive forecast does not capture the seasonality in the data. Since it takes the last sales data to forecast the next 12 months, none of the seasonality is taken into account.
+
+hist(naive_forecast$residuals)
+# The plot indicates that a majority of the data has a residual between -5000 and 5000 but that there are outliers where residuals reside outside of this range. It indicates that the forecast can be more accurate.
+
+# DO FITTED AND ACTUAL VS RESIDUALS
+
+Acf(naive_forecast$residuals)
+# The plot indicates that there is relatively small autocorrelations at all the lags as most fall within the dotted blue lines. This indicates that the residuals appear to be largely uncorrelated with themselves at different time lags. There is also no significant pattern in the residuals
+
+accuracy(naive_forecast)
+#Using the RMSE to measure accuracy, this forecasting technique is not accurate.
+forecast(naive_forecast)
+plot(naive_forecast,12)
+forecast(naive_forecast,12)
+# This forecasting technique is not accurate, since it does not take into consideration the seasonality aspect. It predicts that the sales will be 10151.93 for the next year. Since naive uses the previous sales point, it forecasts all the months in the next year to be that same data point.
+
+MA_forecast<-ma(sales_ts,order=T)
+MA3_forecast<-ma(sales_ts,order=3)
+MA6_forecast<-ma(sales_ts,order=6)
+MA9_forecast<-ma(sales_ts,order=9)
+
+plot(MA_forecast)
+lines(MA3_forecast,col='red')
+lines(MA6_forecast,col='blue')
+lines(MA9_forecast,col='green')
+# As the plot of the moving order goes up, the seasonality of the data seems to decrease, and it shows less of the trend in the data. The lower the order, the better the forecast seems to be for the data.
+
+forecast(MA_forecast,12)
+# I chose the MA_forecast order because it showed to have the most accurate forecast on the plot when compared to the other orders
+
+SSE_Simple<-ets(sales_ts)
+forecast(SSE_Simple,12)
+print(SSE_Simple)
+# The alpha indicates that it places about 10.88% of the weight on the most recent observations while it places 89.12% of the weight on all the historical data. It also indicates that the forecast will be more stable and less reactive to sudden chancese and that the time series has relatively stable patterns.
+
+# The initial states are that the model starts at the level 1289.7576 and that it has a b of 55.258 indicating an upward trend in sales
+
+# Sigma is 0.1958, indicating that about 68% of the actual values fall within 0.1958 units of the forecast. 
+
+plot(SSE_Simple$residuals)
+# This plot of residuals indicate that there appears to be some pattern in the fluctuations and that the variations don't seem completely random. The variation seems to increase slightly towards the years 2023-2024 and that the model might be underestimating the values.
+
+hist(SSE_Simple$residuals)
+# This histogram indicates that it is a reasonably good distribution of residuals and that the model's errors are fairly well-behaved.It also indicates that most predictions are within +- 0.2 of the actual values.
+
+SSE_fitted_values<-fitted(SSE_Simple)
+SSE_residuals<-residuals(SSE_Simple)
+plot(SSE_fitted_values,SSE_residuals)
+# This plot indicates that there seems to be an increasing spread in residuals as fitted values increase and that the spread suggests that the model's accuracy decreases for larger values.
+
+plot(sales_ts,SSE_residuals)
+# This plot indicates that the model's accuracy seems to decrease for larger sales values. The spread of the residuals increases as the sales values increase.
+
+Acf(SSE_residuals)
+#This # The plot indicates that there is relatively small autocorrelations at all the lags as most fall within the dotted blue lines. This indicates that the residuals appear to be largely uncorrelated with themselves at different time lags. There is also no significant pattern in the residuals
+
+accuracy(SSE_Simple)
+# Using the RMSE, the model does not appear to be very accurate, as it is extremely high
+
+plot(SSE_Simple,12)
+forecast(SSE_Simple)
+sales_ts
+
+# The forecast is more accurate than naive but it can still be better. In one year, the predicted time series value is 5414.22506, which seems significantly lower than what the actual should be.
+
+HW_model<-HoltWinters(sales_ts)
+print(HW_model)
+HW_forecast<-forecast(HW_model,12)
+plot(HW_forecast)
+
+# the alpha is 0.1264013, meaning it places 12.64% of the weight of its forecast on the most recent observation. It uses 87.36% of the weight on the overall historical data to make its forecast.
+
+# beta is 1, indicating that the model fully incorporates the most recent information about the trend into its calculations, making it highly sensitive to changes.
+
+#Gamma is 0.9574355, meaning it gives about 95.74% of the weight to the most recent seasonal values when updating the seasonal component. This value indicates that the model is very responsive to changes in seasonal patterns. 
+
+# The initial level is 14490.1765 indicating the average value of the time series at the starting point of the forecast. The initial trend is -412.9180, indicating that the initial point is decreasing at a rate of about 412.92 unites per time period. The initial states for the seasonal component of 410.2043 indicates that the month has a positive deviation of 410.2043, meaning above-average performance.
+
+#The sigma is approximately 2107.03, signifying that the model is capturing some of the patterns in the data.
+
+plot(HW_forecast$residuals)
+# This residuals plot indicates that there are a lot of data points from 2023 onward that are further away from what it was expected to be.
+
+hist(HW_forecast$residuals)
+# This histogram indicates that the forecast of the data mostly has a residual of +-2000, meaning the forecasted value is 2000 units away from the actual. 
+HW_fitted_values<-fitted(HW_forecast)
+HW_residuals<-residuals(HW_forecast)
+plot(HW_fitted_values,HW_residuals)
+# This plot shows that the residuals gradually increase as the fitted values increase. This means that the model accuracy decreases for larger values
+
+plot(sales_ts,HW_residuals)
+# This plot shows something similar to the fitted values plot where as the actual values increase, so do the the differences in residuals and actual values. It may indicate inaccuracy as values increase
+
+
+Acf(HW_forecast$residuals)
+# This plot indicates that the residuals appear to be largely uncorrelated with themselves at different time lags. There is also no significant pattern in the residuals
+
+accuracy(HW_forecast)
+# it seems as though according to the RMSE, this model is the most accurate compared to the other models.
+
+plot(HW_forecast,12)
+forecast(HW_forecast)
+# The model is pretty accurate, as it takes into account the seasonality trend and is able to adapt to changes in the dataset. It predicts that the value in 1 year will be 5240.386.
+
+accuracy(naive_forecast)
+accuracy(SSE_Simple)
+accuracy(MA_forecast,12)
+accuracy(HW_forecast)
+
+# The naive forecasting method uses the previous dataset values to forecast. It is typically used as a benchmark for the other forecasting methods
+
+#The moving average method averages a set of data points over a specified number of periods to smooth out fluctuations and highlight trends and is useful for short-term forecasting where the datapoints are fairly consistent
+
+# The simple smoothing method applies a constant smoothing factor (alpha) to past observations to create a weighted average, where more recent observations are given more weight. It is particularly useful for data without a trend or seasonality.
+
+# The holts winters method extends simple exponential smoothing to capture both trends and seasonality. It is effective for forecasting a time series data with both trend and seasonal patterns.
+
+#
+
+# Over the time period, there was a gradual incline in sales with clear seasonality 2022 onward. I think that in the next year, the data will slightly increase following the data and will do the same the next 2 years taking seasonality into account. 
+
+# Ranking: 1. Holts winters
+# 2. Moving Average
+# 3. Simple Smoothing
+# 4. Naive
+```
+
